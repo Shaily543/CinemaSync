@@ -42,9 +42,26 @@ const movieInput = document.getElementById('movieInput');
 const menuBtns = document.querySelectorAll('.menu-btn');
 
 // WebRTC Configuration
+// STUN = discovers your public IP (free, fast)
+// TURN = relays traffic when direct P2P fails (needed for symmetric NATs)
 const RTCConfig = {
     iceServers: [
-        { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }
+        { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+        {
+            urls: 'turn:openrelay.metered.ca:80',
+            username: 'openrelayproject',
+            credential: 'openrelayproject',
+        },
+        {
+            urls: 'turn:openrelay.metered.ca:443',
+            username: 'openrelayproject',
+            credential: 'openrelayproject',
+        },
+        {
+            urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+            username: 'openrelayproject',
+            credential: 'openrelayproject',
+        },
     ]
 };
 
@@ -455,7 +472,7 @@ function displayChatMessage(message, userId, timestamp, isOwn = false) {
 function loadMovie(url, name) {
     moviePlayer.src = url;
     movieTitle.textContent = `Now Playing: ${name}`;
-    
+
     // Sync with friend
     socket.emit('movie_control', {
         action: 'load',
