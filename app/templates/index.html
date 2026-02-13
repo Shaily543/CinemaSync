@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShareMOV - Watch Together</title>
+    <link rel="stylesheet" href="../static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <div class="logo">
+                <span>🎬 ShareMOV</span>
+            </div>
+            <div class="menu">
+                <button class="menu-btn active" data-section="home">
+                    <span class="icon">🏠</span>
+                    <span>Home</span>
+                </button>
+                <button class="menu-btn" data-section="watch">
+                    <span class="icon">👥</span>
+                    <span>Watch Together</span>
+                </button>
+            </div>
+        </nav>
+
+        <main class="main-content">
+            <!-- Home Section -->
+            <section id="home" class="section active">
+                <div class="home-container">
+                    <div class="welcome-card">
+                        <h1>Welcome to ShareMOV</h1>
+                        <p>Watch movies together with friends in real-time with video call and chat!</p>
+                        
+                        <div class="action-buttons">
+                            <button id="createRoomBtn" class="btn btn-primary btn-large">
+                                <span class="icon">➕</span> Create Room
+                            </button>
+                            <button id="toggleJoinForm" class="btn btn-secondary btn-large">
+                                <span class="icon">🔗</span> Join Room
+                            </button>
+                        </div>
+
+                        <div id="joinForm" class="join-form hidden">
+                            <input type="text" id="roomIdInput" placeholder="Enter room ID" maxlength="8">
+                            <button id="joinRoomBtn" class="btn btn-primary">Join</button>
+                        </div>
+
+                        <div id="roomInfo" class="room-info hidden">
+                            <p>Your Room ID: <strong id="displayRoomId"></strong></p>
+                            <button id="copyBtn" class="btn btn-secondary">Copy Room ID</button>
+                            <button id="startWatchingBtn" class="btn btn-primary">Start Watching</button>
+                        </div>
+                    </div>
+
+                    <div class="features">
+                        <div class="feature-card">
+                            <span class="feature-icon">🎥</span>
+                            <h3>Video Call</h3>
+                            <p>Crystal clear video and audio with P2P connection</p>
+                        </div>
+                        <div class="feature-card">
+                            <span class="feature-icon">🎬</span>
+                            <h3>Synchronized Playback</h3>
+                            <p>Watch movies in perfect sync with your friend</p>
+                        </div>
+                        <div class="feature-card">
+                            <span class="feature-icon">💬</span>
+                            <h3>Live Chat</h3>
+                            <p>Chat while watching without switching apps</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Watch Section (Split Layout) -->
+            <section id="watch" class="section">
+                <div class="watch-container">
+                    <!-- Left: Video Call Area -->
+                    <div class="video-section">
+                        <div class="video-grid">
+                            <div class="video-container local">
+                                <video id="localVideo" autoplay muted playsinline></video>
+                                <span class="video-label">You</span>
+                            </div>
+                            <div class="video-container remote">
+                                <video id="remoteVideo" autoplay playsinline></video>
+                                <span class="video-label">Friend</span>
+                            </div>
+                        </div>
+                        <div class="video-controls">
+                            <button id="toggleAudio" class="control-btn" title="Toggle Audio">
+                                <span class="icon">🎤</span>
+                            </button>
+                            <button id="toggleVideo" class="control-btn" title="Toggle Video">
+                                <span class="icon">📹</span>
+                            </button>
+                            <button id="toggleScreenShare" class="control-btn" title="Screen Share">
+                                <span class="icon">🖥️</span>
+                            </button>
+                            <button id="exitBtn" class="control-btn exit" title="Exit">
+                                <span class="icon">❌</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Middle: Movie Player -->
+                    <div class="player-section">
+                        <div class="movie-player">
+                            <video id="moviePlayer" controls>
+                                <source src="" type="video/mp4">
+                                Your browser does not support the video tag.
+                            </video>
+                        </div>
+                        <div class="player-info">
+                            <h2>Now Playing</h2>
+                            <p id="movieTitle">Select a movie to play</p>
+                        </div>
+                        <div class="file-upload">
+                            <input type="file" id="movieInput" accept="video/*" style="display:none">
+                            <button id="uploadMovieBtn" class="btn btn-secondary">
+                                <span class="icon">📁</span> Upload Movie
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Right: Chat Section -->
+                    <div class="chat-section">
+                        <div class="chat-header">
+                            <h3>Live Chat</h3>
+                        </div>
+                        <div id="chatMessages" class="chat-messages"></div>
+                        <div class="chat-input-area">
+                            <input 
+                                type="text" 
+                                id="chatInput" 
+                                placeholder="Type a message..."
+                                maxlength="500"
+                            >
+                            <button id="sendChatBtn" class="btn btn-primary">Send</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Loading/Error Messages -->
+    <div id="notification" class="notification"></div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="../static/js/app.js"></script>
+</body>
+</html>
