@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ShareMOV - Watch Together</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/style.css?v=3">
 </head>
 
 <body>
@@ -107,23 +107,18 @@
                         </div>
                     </div>
 
-                    <!-- Middle: Movie Player -->
+                    <!-- Middle: Screen Share Display -->
                     <div class="player-section">
-                        <div class="movie-player">
-                            <video id="moviePlayer" controls>
-                                <source src="" type="video/mp4">
-                                Your browser does not support the video tag.
-                            </video>
+                        <div class="screen-share-display">
+                            <video id="screenShareVideo" playsinline></video>
+                            <div id="screenSharePlaceholder" class="screen-placeholder">
+                                <span class="placeholder-icon">🖥️</span>
+                                <h3>Screen Share</h3>
+                                <p>Click the screen share button to share your screen with your friend</p>
+                            </div>
                         </div>
                         <div class="player-info">
-                            <h2>Now Playing</h2>
-                            <p id="movieTitle">Select a movie to play</p>
-                        </div>
-                        <div class="file-upload">
-                            <input type="file" id="movieInput" accept="video/*" style="display:none">
-                            <button id="uploadMovieBtn" class="btn btn-secondary">
-                                <span class="icon">📁</span> Upload Movie
-                            </button>
+                            <h2 id="screenShareStatus">No one is sharing</h2>
                         </div>
                     </div>
 
@@ -148,7 +143,7 @@
 
     <!-- Scripts -->
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-    <script src="/static/js/app.js?v=6"></script>
+    <script src="/static/js/app.js?v=10"></script>
 </body>
 
 </html>

@@ -34,6 +34,7 @@ body {
     overflow: hidden;
     -webkit-touch-callout: none;
     -webkit-user-select: none;
+    user-select: none;
     -webkit-tap-highlight-color: transparent;
 }
 
@@ -177,8 +178,7 @@ body {
 
 .logo {
     text-align: center;
-    font-size: 1vw;
-    min-font-size: 12px;
+    font-size: clamp(12px, 1vw, 16px);
     font-weight: bold;
     background: linear-gradient(135deg, #6366f1, #ec4899);
     -webkit-background-clip: text;
@@ -679,7 +679,7 @@ body {
     align-items: center;
     justify-content: center;
     font-size: 1.3vw;
-    min-font-size: 16px;
+    /* font-size handled by clamp in font-size property */
     transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
     position: relative;
     overflow: hidden;
@@ -750,7 +750,8 @@ body {
     box-shadow: 0 15px 50px rgba(236, 72, 153, 0.2);
 }
 
-.movie-player {
+/* Screen Share Display */
+.screen-share-display {
     flex: 1;
     background-color: #000;
     border-radius: 0.9vw;
@@ -765,14 +766,50 @@ body {
     transition: all 0.3s ease;
 }
 
-.movie-player:hover {
+.screen-share-display:hover {
     border-color: var(--secondary-light);
 }
 
-.movie-player video {
+.screen-share-display video {
     width: 100%;
     height: 100%;
     object-fit: contain;
+    display: none;
+}
+
+.screen-share-display video.active {
+    display: block;
+}
+
+.screen-placeholder {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: 2vw;
+    animation: fadeInScale 0.5s ease;
+}
+
+.screen-placeholder .placeholder-icon {
+    font-size: clamp(40px, 4vw, 64px);
+    display: block;
+    margin-bottom: 1vw;
+    opacity: 0.5;
+    animation: float 4s ease-in-out infinite;
+}
+
+.screen-placeholder h3 {
+    font-size: clamp(14px, 1.3vw, 18px);
+    color: var(--primary-light);
+    margin-bottom: 0.5vw;
+}
+
+.screen-placeholder p {
+    font-size: clamp(11px, 1vw, 14px);
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
+.screen-placeholder.hidden {
+    display: none;
 }
 
 .player-info {
@@ -785,24 +822,6 @@ body {
     margin-bottom: 0.4vw;
     color: var(--secondary-light);
     text-shadow: 0 2px 10px rgba(236, 72, 153, 0.2);
-}
-
-.player-info p {
-    color: var(--text-secondary);
-    font-size: clamp(12px, 1.1vw, 14px);
-    margin: 0;
-}
-
-.file-upload {
-    display: flex;
-    gap: 0.8vw;
-    animation: slideInUp 0.6s ease 0.3s both;
-    flex-wrap: wrap;
-}
-
-.file-upload .btn {
-    flex: 1;
-    min-width: 120px;
 }
 
 /* Chat Section */
@@ -904,18 +923,49 @@ body {
     margin-top: 0.5vw;
 }
 
-.message.own {
+.chat-message.own {
     align-self: flex-end;
+    justify-content: flex-end;
 }
 
-.message.own .message-content {
+.chat-message.own .message-content {
     background: linear-gradient(135deg, #6366f1, #4f46e5);
     border-color: var(--primary-light);
     color: white;
 }
 
-.message.own .message-author {
+.chat-message.own .message-author {
     color: rgba(255, 255, 255, 0.9);
+}
+
+/* System/debug messages — compact, non-intrusive */
+.chat-message.system-msg {
+    opacity: 0.7;
+}
+
+.chat-message.system-msg .message-content {
+    background: rgba(99, 102, 241, 0.08);
+    border-color: rgba(99, 102, 241, 0.2);
+    padding: 4px 8px;
+    max-width: 100%;
+    box-shadow: none;
+}
+
+.chat-message.system-msg .message-content:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+.chat-message.system-msg .message-author {
+    font-size: 9px;
+    color: #818cf8;
+    margin-bottom: 1px;
+}
+
+.chat-message.system-msg .message-text {
+    font-size: 10px;
+    color: #94a3b8;
+    line-height: 1.2;
 }
 
 .chat-input-area {

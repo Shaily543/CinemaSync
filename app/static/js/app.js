@@ -13,14 +13,17 @@ const state = {
     videoEnabled: true,
     isScreenSharing: false,
     isVideoReady: false,
-    shouldInitiate: false,     // true = I should create the offer (I'm the joiner)
+    shouldInitiate: false,
+    iceCandidateBuffer: [],
+    remoteDescriptionSet: false,
 };
 
 // DOM References
 const localVideo = document.getElementById('localVideo');
 const remoteVideo = document.getElementById('remoteVideo');
-const moviePlayer = document.getElementById('moviePlayer');
-const movieTitle = document.getElementById('movieTitle');
+const screenShareVideo = document.getElementById('screenShareVideo');
+const screenSharePlaceholder = document.getElementById('screenSharePlaceholder');
+const screenShareStatus = document.getElementById('screenShareStatus');
 const chatMessages = document.getElementById('chatMessages');
 const chatInput = document.getElementById('chatInput');
 const sendChatBtn = document.getElementById('sendChatBtn');
@@ -37,57 +40,54 @@ const toggleAudio = document.getElementById('toggleAudio');
 const toggleVideo = document.getElementById('toggleVideo');
 const toggleScreenShare = document.getElementById('toggleScreenShare');
 const exitBtn = document.getElementById('exitBtn');
-const uploadMovieBtn = document.getElementById('uploadMovieBtn');
-const movieInput = document.getElementById('movieInput');
-
-// Menu buttons
 const menuBtns = document.querySelectorAll('.menu-btn');
 
-// WebRTC Configuration — fetched dynamically from Metered.ca
-let RTCConfig = {
+// WebRTC Configuration — Metered.ca TURN servers
+const RTCConfig = {
     iceServers: [
-        { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+        { urls: 'stun:stun.relay.metered.ca:80' },
+        { urls: 'turn:global.relay.metered.ca:80', username: 'd5f9f06374ccf9b5ccbdb2e3', credential: 'cFWWPyg281+1HfGS' },
+        { urls: 'turn:global.relay.metered.ca:80?transport=tcp', username: 'd5f9f06374ccf9b5ccbdb2e3', credential: 'cFWWPyg281+1HfGS' },
+        { urls: 'turn:global.relay.metered.ca:443', username: 'd5f9f06374ccf9b5ccbdb2e3', credential: 'cFWWPyg281+1HfGS' },
+        { urls: 'turns:global.relay.metered.ca:443?transport=tcp', username: 'd5f9f06374ccf9b5ccbdb2e3', credential: 'cFWWPyg281+1HfGS' },
     ]
 };
 
-async function fetchTurnConfig() {
-    try {
-        const resp = await fetch(
-            'https://sharemov.metered.live/api/v1/turn/credentials?apiKey=4044f18d121a9c5c6fa9994ed405c05d1874'
-        );
-        const iceServers = await resp.json();
-        // Add STUN as first choice (fastest), TURN servers as fallback
-        iceServers.unshift({ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] });
-        RTCConfig = { iceServers: iceServers };
-        logStatus('🔑 Got ' + iceServers.length + ' ICE servers (STUN + TURN)');
-    } catch (err) {
-        logStatus('⚠ Could not fetch TURN config: ' + err.message);
-    }
-}
-
-// ============ Debugging — visible in chat panel ============
+// ============ Debug Status ============
 
 function logStatus(msg) {
     console.log('[ShareMOV]', msg);
     if (!chatMessages) return;
     const el = document.createElement('div');
-    el.className = 'chat-message';
-    el.innerHTML = `<div class="message-content" style="background:rgba(99,102,241,0.12);border-color:#6366f1;font-size:11px;">
-        <div class="message-author" style="color:#818cf8;">⚙ SYSTEM</div>
-        <div class="message-text" style="color:#cbd5e1;">${msg}</div>
+    el.className = 'chat-message system-msg';
+    el.innerHTML = `<div class="message-content">
+        <div class="message-author">⚙ SYSTEM</div>
+        <div class="message-text">${msg}</div>
     </div>`;
     chatMessages.appendChild(el);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
+// ============ ICE Candidate Buffering ============
+
+async function addBufferedCandidates() {
+    if (state.iceCandidateBuffer.length > 0 && state.peerConnection) {
+        logStatus('🧊 Flushing ' + state.iceCandidateBuffer.length + ' buffered ICE candidates');
+        for (const candidate of state.iceCandidateBuffer) {
+            try {
+                await state.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+            } catch (e) {
+                console.warn('Buffered ICE candidate error:', e.message);
+            }
+        }
+        state.iceCandidateBuffer = [];
+    }
+}
+
 // ============ Socket.IO Events ============
 
 socket.on('connect', () => {
-    logStatus('🟢 Connected to server (transport: ' + socket.io.engine.transport.name + ')');
-    // Log when transport upgrades
-    socket.io.engine.on('upgrade', (transport) => {
-        logStatus('🔄 Transport upgraded to: ' + transport.name);
-    });
+    logStatus('🟢 Connected to server');
 });
 
 socket.on('disconnect', (reason) => {
@@ -101,7 +101,7 @@ socket.on('user_id', (data) => {
 
 socket.on('room_created', (data) => {
     state.roomId = data.room_id;
-    state.shouldInitiate = false;  // Creator waits for offers
+    state.shouldInitiate = false;
     showRoomInfo();
     showNotification('Room created: ' + data.room_id, 'success');
     logStatus('🏠 Room created: ' + data.room_id + ' (you are the host)');
@@ -112,32 +112,32 @@ socket.on('room_joined', (data) => {
     showRoomInfo();
     showNotification('Joined room successfully', 'success');
     logStatus('🚪 Joined room ' + data.room_id + ' (' + data.users.length + ' users)');
-
-    // I'm the JOINER — I should create the offer when my camera is ready
     if (data.users.length >= 2) {
         state.shouldInitiate = true;
-        logStatus('📋 You will initiate the call when camera starts');
+        logStatus('📋 You will initiate the call after clicking Start Watching');
     }
 });
 
 socket.on('user_joined', (data) => {
     showNotification('Friend joined the room!', 'success');
-    logStatus('👋 Friend joined! (' + data.users.length + ' in room) — waiting for their offer...');
-    // Host does NOT initiate — waits for joiner's offer
+    logStatus('👋 Friend joined! Waiting for their offer...');
 });
 
 socket.on('user_disconnected', (data) => {
     showNotification('Friend disconnected', 'error');
     logStatus('🔴 Friend disconnected');
     cleanupPeerConnection();
+    hideScreenShare();
 });
 
 // ─── WebRTC Signaling ───
 
 socket.on('webrtc_offer', async (data) => {
-    logStatus('📥 Received offer from: ' + data.from);
+    logStatus('📥 Received WebRTC offer');
     try {
-        // If camera not ready, start it now
+        state.iceCandidateBuffer = [];
+        state.remoteDescriptionSet = false;
+
         if (!state.localStream) {
             logStatus('⏳ Starting camera to answer...');
             await startCamera();
@@ -145,32 +145,36 @@ socket.on('webrtc_offer', async (data) => {
 
         createPeerConnection();
         await state.peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+        state.remoteDescriptionSet = true;
         logStatus('✅ Remote offer set');
+        await addBufferedCandidates();
 
         const answer = await state.peerConnection.createAnswer();
         await state.peerConnection.setLocalDescription(answer);
-        logStatus('📤 Sending answer...');
-
         socket.emit('webrtc_answer', { answer: answer, from: state.userId });
+        logStatus('📤 Answer sent!');
     } catch (err) {
-        logStatus('❌ Error answering offer: ' + err.message);
+        logStatus('❌ Error handling offer: ' + err.message);
         console.error('Offer error:', err);
     }
 });
 
 socket.on('webrtc_answer', async (data) => {
-    logStatus('📥 Received answer from: ' + data.from);
+    logStatus('📥 Received WebRTC answer');
     try {
         if (!state.peerConnection) {
-            logStatus('⚠ No peer connection for answer');
+            logStatus('⚠ No peer connection — ignoring answer');
             return;
         }
-        if (state.peerConnection.signalingState !== 'have-local-offer') {
-            logStatus('⚠ Wrong state for answer: ' + state.peerConnection.signalingState);
+        const sigState = state.peerConnection.signalingState;
+        if (sigState !== 'have-local-offer') {
+            logStatus('⚠ Wrong signaling state: ' + sigState);
             return;
         }
         await state.peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+        state.remoteDescriptionSet = true;
         logStatus('✅ Remote answer set — ICE connecting...');
+        await addBufferedCandidates();
     } catch (err) {
         logStatus('❌ Error setting answer: ' + err.message);
         console.error('Answer error:', err);
@@ -178,22 +182,36 @@ socket.on('webrtc_answer', async (data) => {
 });
 
 socket.on('webrtc_ice_candidate', async (data) => {
-    try {
-        if (state.peerConnection && data.candidate) {
-            await state.peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-            logStatus('🧊 Received ICE candidate from peer');
-        }
-    } catch (err) {
-        console.warn('ICE candidate error (usually OK):', err.message);
+    if (!data.candidate) return;
+    if (!state.remoteDescriptionSet || !state.peerConnection) {
+        state.iceCandidateBuffer.push(data.candidate);
+        logStatus('🧊 Buffered ICE candidate (waiting for remote desc)');
+        return;
     }
+    try {
+        await state.peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+        logStatus('🧊 Added ICE candidate from peer');
+    } catch (err) {
+        logStatus('⚠ ICE candidate error: ' + err.message);
+    }
+});
+
+// ─── Screen share notifications via Socket.IO ───
+
+socket.on('screen_share_started', (data) => {
+    logStatus('🖥️ Friend started screen sharing!');
+    showNotification('Friend is sharing their screen', 'success');
+    showScreenShareFromRemote();
+});
+
+socket.on('screen_share_stopped', (data) => {
+    logStatus('🖥️ Friend stopped screen sharing');
+    showNotification('Friend stopped sharing', 'success');
+    hideScreenShare();
 });
 
 socket.on('chat_message', (data) => {
     displayChatMessage(data.message, data.user_id, data.timestamp);
-});
-
-socket.on('movie_control', (data) => {
-    handleRemoteMovieControl(data);
 });
 
 socket.on('error', (data) => {
@@ -216,7 +234,7 @@ async function startCamera() {
     } catch (err) {
         logStatus('❌ Camera failed: ' + err.message);
         showNotification('Camera error: ' + err.message, 'error');
-        state.isVideoReady = true;  // still mark ready so we can receive video
+        state.isVideoReady = true;
         return false;
     }
 }
@@ -227,7 +245,7 @@ function createPeerConnection() {
     }
 
     state.peerConnection = new RTCPeerConnection(RTCConfig);
-    logStatus('🔧 PeerConnection created');
+    logStatus('🔧 PeerConnection created with ' + RTCConfig.iceServers.length + ' ICE servers');
 
     // Add local tracks
     if (state.localStream) {
@@ -241,45 +259,26 @@ function createPeerConnection() {
     // Receive remote tracks
     state.peerConnection.ontrack = (event) => {
         logStatus('📺 Received remote ' + event.track.kind + ' track!');
-
-        const stream = (event.streams && event.streams[0]) ? event.streams[0] : null;
-
-        if (stream) {
-            if (remoteVideo.srcObject !== stream) {
-                remoteVideo.srcObject = stream;
-                state.remoteStream = stream;
+        if (event.streams && event.streams[0]) {
+            if (remoteVideo.srcObject !== event.streams[0]) {
+                remoteVideo.srcObject = event.streams[0];
+                state.remoteStream = event.streams[0];
                 logStatus('📺 Remote stream attached');
-
-                // Play when browser has loaded the stream metadata
                 remoteVideo.onloadedmetadata = () => {
-                    logStatus('📺 Stream metadata loaded — starting playback');
                     remoteVideo.play()
-                        .then(() => logStatus('▶ Remote video IS PLAYING!'))
+                        .then(() => logStatus('▶ Remote video playing!'))
                         .catch(err => {
-                            logStatus('⚠ Autoplay blocked — trying muted...');
                             remoteVideo.muted = true;
                             remoteVideo.play()
-                                .then(() => {
-                                    logStatus('▶ Playing muted — click video to unmute');
-                                    // Unmute after a short delay (user already interacted)
-                                    setTimeout(() => { remoteVideo.muted = false; }, 1000);
-                                })
-                                .catch(err2 => logStatus('❌ Cannot play: ' + err2.message));
+                                .then(() => setTimeout(() => { remoteVideo.muted = false; }, 1000))
+                                .catch(e => logStatus('❌ Cannot play: ' + e.message));
                         });
                 };
             }
-        } else {
-            // Fallback: manually build stream
-            if (!state.remoteStream) {
-                state.remoteStream = new MediaStream();
-                remoteVideo.srcObject = state.remoteStream;
-            }
-            state.remoteStream.addTrack(event.track);
-            logStatus('📺 Track added (fallback)');
         }
     };
 
-    // ICE candidates → send to peer via signaling server
+    // ICE candidates
     state.peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
             socket.emit('webrtc_ice_candidate', {
@@ -289,14 +288,17 @@ function createPeerConnection() {
         }
     };
 
-    // ICE connection state tracking
+    state.peerConnection.onicegatheringstatechange = () => {
+        logStatus('🧊 ICE gathering: ' + state.peerConnection.iceGatheringState);
+    };
+
     state.peerConnection.oniceconnectionstatechange = () => {
         const s = state.peerConnection.iceConnectionState;
-        logStatus('🧊 ICE: ' + s);
+        logStatus('🧊 ICE connection: ' + s);
         if (s === 'connected' || s === 'completed') {
             showNotification('🎉 Video call connected!', 'success');
         } else if (s === 'failed') {
-            logStatus('❌ ICE FAILED — TURN server may be needed or broken');
+            logStatus('❌ ICE FAILED — try refreshing both browsers');
             showNotification('Connection failed', 'error');
         }
     };
@@ -312,6 +314,7 @@ function createPeerConnection() {
 }
 
 function setupDataChannel(channel) {
+    channel.binaryType = 'arraybuffer';
     channel.onopen = () => logStatus('📦 Data channel open');
     channel.onclose = () => logStatus('📦 Data channel closed');
     channel.onmessage = (e) => console.log('DC message:', e.data);
@@ -319,64 +322,75 @@ function setupDataChannel(channel) {
 
 async function initiateWebRTC() {
     try {
+        state.remoteDescriptionSet = false;
+        state.iceCandidateBuffer = [];
         createPeerConnection();
-
         const offer = await state.peerConnection.createOffer();
         await state.peerConnection.setLocalDescription(offer);
-        logStatus('📤 Sending offer to room...');
-
-        socket.emit('webrtc_offer', {
-            offer: offer,
-            from: state.userId
-        });
+        logStatus('📤 Offer sent to room!');
+        socket.emit('webrtc_offer', { offer: offer, from: state.userId });
     } catch (err) {
         logStatus('❌ Error creating offer: ' + err.message);
         console.error('Offer error:', err);
-        showNotification('Failed to start call', 'error');
     }
 }
 
 async function initializeVideo() {
-    logStatus('📹 Fetching TURN server config...');
-    await fetchTurnConfig();
     logStatus('📹 Starting camera...');
     await startCamera();
 
     if (state.shouldInitiate && state.roomId) {
-        // I'm the joiner — I create the offer
-        logStatus('🚀 I am the joiner — creating WebRTC offer in 1s...');
-        setTimeout(() => {
-            initiateWebRTC();
-        }, 1000);
+        logStatus('🚀 I am the joiner — creating WebRTC offer in 2s...');
+        setTimeout(() => initiateWebRTC(), 2000);
     } else if (state.roomId) {
-        logStatus('⏳ I am the host — waiting for joiner to send offer...');
+        logStatus('⏳ I am the host — waiting for joiner...');
     }
 }
+
+// ============ Screen Sharing ============
 
 async function startScreenShare() {
     try {
         if (!state.peerConnection) {
-            showNotification('No active call — connect first!', 'error');
+            showNotification('Start a call first!', 'error');
             return;
         }
+
         const screenStream = await navigator.mediaDevices.getDisplayMedia({
             video: { cursor: 'always' },
             audio: false
         });
+
         const screenTrack = screenStream.getVideoTracks()[0];
+
+        // Replace video track in the peer connection
         const sender = state.peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
         if (sender) {
             await sender.replaceTrack(screenTrack);
-            state.isScreenSharing = true;
-            localVideo.srcObject = screenStream;
-            screenTrack.onended = () => stopScreenShare();
-            showNotification('Screen sharing started', 'success');
-            logStatus('🖥️ Screen sharing ON');
-            updateControlButtonStates();
         }
+
+        // Show screen share in the center panel (your own view)
+        screenShareVideo.srcObject = screenStream;
+        screenShareVideo.classList.add('active');
+        screenSharePlaceholder.classList.add('hidden');
+        screenShareStatus.textContent = '🖥️ You are sharing your screen';
+        screenShareVideo.play().catch(() => { });
+
+        state.isScreenSharing = true;
+        updateControlButtonStates();
+
+        // Notify peer
+        socket.emit('screen_share_started', { from: state.userId });
+        logStatus('🖥️ Screen sharing started');
+        showNotification('Screen sharing started', 'success');
+
+        // Handle when user stops sharing via browser UI
+        screenTrack.onended = () => {
+            stopScreenShare();
+        };
     } catch (err) {
         if (err.name !== 'NotAllowedError') {
-            showNotification('Screen share failed', 'error');
+            showNotification('Screen share failed: ' + err.message, 'error');
         }
     }
 }
@@ -388,17 +402,44 @@ async function stopScreenShare() {
             const sender = state.peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
             if (sender && videoTrack) {
                 await sender.replaceTrack(videoTrack);
-                localVideo.srcObject = state.localStream;
-                state.isScreenSharing = false;
-                showNotification('Screen sharing stopped', 'success');
-                logStatus('🖥️ Screen sharing OFF');
-                updateControlButtonStates();
             }
         }
+
+        state.isScreenSharing = false;
+        updateControlButtonStates();
+
+        // Hide screen share display
+        hideScreenShare();
+
+        // Notify peer
+        socket.emit('screen_share_stopped', { from: state.userId });
+        logStatus('🖥️ Screen sharing stopped');
+        showNotification('Screen sharing stopped', 'success');
     } catch (err) {
-        console.error('Stop screenshare error:', err);
+        console.error('Stop screenshare:', err);
     }
 }
+
+function showScreenShareFromRemote() {
+    // When the remote peer shares their screen, their video track changes
+    // Show the remote video also in the center screen share display (larger view)
+    if (state.remoteStream) {
+        screenShareVideo.srcObject = state.remoteStream;
+        screenShareVideo.classList.add('active');
+        screenSharePlaceholder.classList.add('hidden');
+        screenShareStatus.textContent = '🖥️ Friend is sharing their screen';
+        screenShareVideo.play().catch(() => { });
+    }
+}
+
+function hideScreenShare() {
+    screenShareVideo.classList.remove('active');
+    screenShareVideo.srcObject = null;
+    screenSharePlaceholder.classList.remove('hidden');
+    screenShareStatus.textContent = 'No one is sharing';
+}
+
+// ============ Connection Cleanup ============
 
 function cleanupPeerConnection() {
     if (state.peerConnection) {
@@ -410,6 +451,8 @@ function cleanupPeerConnection() {
         state.remoteStream = null;
     }
     remoteVideo.srcObject = null;
+    state.remoteDescriptionSet = false;
+    state.iceCandidateBuffer = [];
 }
 
 function closeConnection() {
@@ -422,6 +465,7 @@ function closeConnection() {
     state.isScreenSharing = false;
     state.isVideoReady = false;
     state.shouldInitiate = false;
+    hideScreenShare();
     showNotification('Call ended', 'success');
 }
 
@@ -435,18 +479,13 @@ toggleJoinForm.addEventListener('click', () => {
 
 joinRoomBtn.addEventListener('click', () => {
     const roomId = roomIdInput.value.trim();
-    if (roomId) {
-        socket.emit('join_room', { room_id: roomId });
-    } else {
-        showNotification('Please enter a room ID', 'error');
-    }
+    if (roomId) socket.emit('join_room', { room_id: roomId });
+    else showNotification('Please enter a room ID', 'error');
 });
 
 copyBtn.addEventListener('click', () => {
     const roomId = document.getElementById('displayRoomId').textContent;
-    navigator.clipboard.writeText(roomId).then(() => {
-        showNotification('Room ID copied!', 'success');
-    });
+    navigator.clipboard.writeText(roomId).then(() => showNotification('Room ID copied!', 'success'));
 });
 
 startWatchingBtn.addEventListener('click', () => {
@@ -456,17 +495,13 @@ startWatchingBtn.addEventListener('click', () => {
 
 toggleAudio.addEventListener('click', () => {
     state.audioEnabled = !state.audioEnabled;
-    if (state.localStream) {
-        state.localStream.getAudioTracks().forEach(t => t.enabled = state.audioEnabled);
-    }
+    if (state.localStream) state.localStream.getAudioTracks().forEach(t => t.enabled = state.audioEnabled);
     updateControlButtonStates();
 });
 
 toggleVideo.addEventListener('click', () => {
     state.videoEnabled = !state.videoEnabled;
-    if (state.localStream) {
-        state.localStream.getVideoTracks().forEach(t => t.enabled = state.videoEnabled);
-    }
+    if (state.localStream) state.localStream.getVideoTracks().forEach(t => t.enabled = state.videoEnabled);
     updateControlButtonStates();
 });
 
@@ -474,19 +509,7 @@ toggleScreenShare.addEventListener('click', () => {
     state.isScreenSharing ? stopScreenShare() : startScreenShare();
 });
 
-exitBtn.addEventListener('click', () => {
-    closeConnection();
-    switchSection('home');
-});
-
-uploadMovieBtn.addEventListener('click', () => movieInput.click());
-
-movieInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-        loadMovie(URL.createObjectURL(file), file.name);
-    }
-});
+exitBtn.addEventListener('click', () => { closeConnection(); switchSection('home'); });
 
 sendChatBtn.addEventListener('click', sendChatMessage);
 chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendChatMessage(); });
@@ -523,57 +546,11 @@ function displayChatMessage(message, userId, timestamp, isOwn = false) {
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-// ============ Movie Player ============
-
-let isSyncingMovie = false;
-let movieSyncSetup = false;
-
-function loadMovie(url, name) {
-    moviePlayer.src = url;
-    movieTitle.textContent = 'Now Playing: ' + name;
-    socket.emit('movie_control', { action: 'load', value: { name } });
-    showNotification('Loaded: ' + name, 'success');
-    logStatus('🎬 Movie loaded: ' + name);
-    logStatus('💡 TIP: Use Screen Share to let your friend see the movie!');
-    if (!movieSyncSetup) { setupMovieSyncEvents(); movieSyncSetup = true; }
-}
-
-function setupMovieSyncEvents() {
-    moviePlayer.addEventListener('play', () => {
-        if (!isSyncingMovie) socket.emit('movie_control', { action: 'play', value: moviePlayer.currentTime });
-    });
-    moviePlayer.addEventListener('pause', () => {
-        if (!isSyncingMovie) socket.emit('movie_control', { action: 'pause', value: moviePlayer.currentTime });
-    });
-    moviePlayer.addEventListener('seeked', () => {
-        if (!isSyncingMovie) socket.emit('movie_control', { action: 'seek', value: moviePlayer.currentTime });
-    });
-}
-
-function handleRemoteMovieControl(data) {
-    isSyncingMovie = true;
-    if (data.action === 'load') {
-        movieTitle.textContent = 'Friend is watching: ' + data.value.name;
-        showNotification('Friend loaded: ' + data.value.name + ' — Load same file OR ask them to Screen Share!', 'success');
-        logStatus('🎬 Friend loaded: ' + data.value.name);
-    } else if (data.action === 'play') {
-        moviePlayer.currentTime = data.value;
-        moviePlayer.play();
-    } else if (data.action === 'pause') {
-        moviePlayer.currentTime = data.value;
-        moviePlayer.pause();
-    } else if (data.action === 'seek') {
-        moviePlayer.currentTime = data.value;
-    }
-    setTimeout(() => { isSyncingMovie = false; }, 500);
-}
-
 // ============ UI ============
 
 function showRoomInfo() {
-    const roomInfo = document.getElementById('roomInfo');
     document.getElementById('displayRoomId').textContent = state.roomId;
-    roomInfo.classList.remove('hidden');
+    document.getElementById('roomInfo').classList.remove('hidden');
 }
 
 function switchSection(name) {

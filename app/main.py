@@ -320,20 +320,32 @@ async def chat_message(sid, data):
     logger.info("💬  Chat in room %s from %s", room_id, payload["user_id"])
 
 
-# ─── Movie Playback Sync ──────────────────────────────────────────────────────
+# ─── Screen Share Notifications ────────────────────────────────────────────────
 
 @sio.event
-async def movie_control(sid, data):
+async def screen_share_started(sid, data):
     room_id = sid_to_room.get(sid)
     if not room_id:
         return
 
     payload = {
-        "action": data.get("action"),
-        "value": data.get("value"),
+        "from": sid_to_user.get(sid, "unknown"),
     }
-    await _broadcast_to_room(room_id, "movie_control", payload, skip_sid=sid)
-    logger.info("🎬  Movie control '%s' in room %s", data.get("action"), room_id)
+    await _broadcast_to_room(room_id, "screen_share_started", payload, skip_sid=sid)
+    logger.info("🖥️  Screen share started by sid=%s in room %s", sid, room_id)
+
+
+@sio.event
+async def screen_share_stopped(sid, data):
+    room_id = sid_to_room.get(sid)
+    if not room_id:
+        return
+
+    payload = {
+        "from": sid_to_user.get(sid, "unknown"),
+    }
+    await _broadcast_to_room(room_id, "screen_share_stopped", payload, skip_sid=sid)
+    logger.info("🖥️  Screen share stopped by sid=%s in room %s", sid, room_id)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
