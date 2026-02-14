@@ -1,5 +1,5 @@
 [project]
-name = "sharemov"
+name = "cinemasync"
 version = "0.1.0"
 description = "P2P Video Call, Chat & Screen Share over WebRTC"
 readme = "README.md"

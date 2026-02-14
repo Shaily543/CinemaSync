@@ -1,6 +1,6 @@
 """
-ShareMOV Signaling Server
-─────────────────────────
+CinemaSync Signaling Server
+──────────────────────────
 FastAPI  +  python-socketio  (async mode)
 
 Handles:
@@ -24,7 +24,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s │ %(levelname)s │ %(message)s",
 )
-logger = logging.getLogger("sharemov")
+logger = logging.getLogger("cinemasync")
 
 # ─── In-memory stores ─────────────────────────────────────────────────────────
 rooms: dict[str, dict] = {}       # room_id → {"users": [sid, …]}
@@ -34,7 +34,7 @@ sid_to_room: dict[str, str] = {}  # sid → room_id
 MAX_USERS_PER_ROOM = 3
 
 # ─── FastAPI app ───────────────────────────────────────────────────────────────
-fastapi_app = FastAPI(title="ShareMOV Signaling Server")
+fastapi_app = FastAPI(title="CinemaSync Signaling Server")
 fastapi_app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
@@ -100,7 +100,7 @@ async def turn_credentials():
         import httpx
         async with httpx.AsyncClient() as client:
             resp = await client.get(
-                f"https://sharemov.metered.live/api/v1/turn/credentials?apiKey={api_key}",
+                f"https://cinemasync.metered.live/api/v1/turn/credentials?apiKey={api_key}",
                 timeout=5.0,
             )
             if resp.status_code == 200:

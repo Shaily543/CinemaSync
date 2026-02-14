@@ -56,7 +56,7 @@ const RTCConfig = {
 // ============ Debug Status ============
 
 function logStatus(msg) {
-    console.log('[ShareMOV]', msg);
+    console.log('[CinemaSync]', msg);
     if (!chatMessages) return;
     const el = document.createElement('div');
     el.className = 'chat-message system-msg';
@@ -578,6 +578,6 @@ function escapeHtml(text) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('ShareMOV initialized');
+    console.log('CinemaSync initialized');
     switchSection('home');
 });
