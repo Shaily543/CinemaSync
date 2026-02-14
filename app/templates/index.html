@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ShareMOV - Watch Together</title>
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
+
 <body>
     <div class="container">
         <!-- Sidebar Navigation -->
@@ -32,7 +34,7 @@
                     <div class="welcome-card">
                         <h1>Welcome to ShareMOV</h1>
                         <p>Watch movies together with friends in real-time with video call and chat!</p>
-                        
+
                         <div class="action-buttons">
                             <button id="createRoomBtn" class="btn btn-primary btn-large">
                                 <span class="icon">➕</span> Create Room
@@ -85,7 +87,7 @@
                                 <span class="video-label">You</span>
                             </div>
                             <div class="video-container remote">
-                                <video id="remoteVideo" autoplay playsinline></video>
+                                <video id="remoteVideo" playsinline></video>
                                 <span class="video-label">Friend</span>
                             </div>
                         </div>
@@ -132,12 +134,7 @@
                         </div>
                         <div id="chatMessages" class="chat-messages"></div>
                         <div class="chat-input-area">
-                            <input 
-                                type="text" 
-                                id="chatInput" 
-                                placeholder="Type a message..."
-                                maxlength="500"
-                            >
+                            <input type="text" id="chatInput" placeholder="Type a message..." maxlength="500">
                             <button id="sendChatBtn" class="btn btn-primary">Send</button>
                         </div>
                     </div>
@@ -151,6 +148,7 @@
 
     <!-- Scripts -->
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/app.js?v=6"></script>
 </body>
+
 </html>
